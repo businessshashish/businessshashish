@@ -1,49 +1,37 @@
-Shashish
+# LAYERSTOP
 
-Design Engineer • Founder @ Layerstop
+Not an agency.
 
-I help startups launch premium landing pages that convert.
+Not a freelancer.
 
-✔ UI/UX
+A design engineering studio that ships premium landing pages in 14 days.
 
-✔ Frontend Development
+---
 
-✔ SEO
+### Current Capacity
 
-✔ AEO
+███░░░
 
-✔ Performance
+Accepting 2 client projects this month.
 
-✔ Motion
+---
 
-Recent Projects
+### Latest Launches
 
-🟢 Brand Story Socials
+✓ Brand Story Socials
 
-🟢 Cadence
+✓ Cadence
 
-🟢 Portfolio
+✓ Portfolio
 
-Current Focus
+---
 
-Building Layerstop into the internet's premium landing page studio.
+### Principles
 
-Services
+Design before trends.
 
-Landing Pages
+Performance before animations.
 
-Marketing Websites
+Conversion before decoration.
 
-UI Systems
-
-SEO
-
-Design Engineering
-
-Contact 9986824100
-
-Website https://businessshashish.github.io/portfolio/
-
-x https://x.com/shashishcosmos 
-
-Email layerstopcosmos@gmail.com
+Craft before scale.
