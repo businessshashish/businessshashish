@@ -1,16 +1,49 @@
-## Hi there 👋
+Shashish
 
-<!--
-**businessshashish/businessshashish** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
+Design Engineer • Founder @ Layerstop
 
-Here are some ideas to get you started:
+I help startups launch premium landing pages that convert.
 
-- 🔭 I’m currently working on ...
-- 🌱 I’m currently learning ...
-- 👯 I’m looking to collaborate on ...
-- 🤔 I’m looking for help with ...
-- 💬 Ask me about ...
-- 📫 How to reach me: ...
-- 😄 Pronouns: ...
-- ⚡ Fun fact: ...
--->
+✔ UI/UX
+
+✔ Frontend Development
+
+✔ SEO
+
+✔ AEO
+
+✔ Performance
+
+✔ Motion
+
+Recent Projects
+
+🟢 Brand Story Socials
+
+🟢 Cadence
+
+🟢 Portfolio
+
+Current Focus
+
+Building Layerstop into the internet's premium landing page studio.
+
+Services
+
+Landing Pages
+
+Marketing Websites
+
+UI Systems
+
+SEO
+
+Design Engineering
+
+Contact 9986824100
+
+Website businessshashish/my-portfolio-site
+
+x https://x.com/shashishcosmos 
+
+Email layerstopcosmos@gmail.com
