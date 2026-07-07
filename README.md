@@ -42,7 +42,7 @@ Design Engineering
 
 Contact 9986824100
 
-Website businessshashish/my-portfolio-site
+Website https://businessshashish.github.io/portfolio/
 
 x https://x.com/shashishcosmos 
 
