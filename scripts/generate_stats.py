@@ -35,8 +35,8 @@ query = """
 query($login: String!, $from: DateTime!, $to: DateTime!) {
   user(login: $login) {
     contributionsCollection(from: $from, to: $to) {
-      totalContributions
       contributionCalendar {
+        totalContributions
         weeks {
           contributionDays {
             date
@@ -147,8 +147,6 @@ def level(count):
 
 BACKGROUND = "#0d1117"
 
-EMPTY = "#161b22"
-
 LEVELS = [
     "#161b22",
     "#0e4429",
@@ -170,13 +168,11 @@ svg = [
     f'height="{height}" '
     f'viewBox="0 0 {width} {height}">',
 
-    # Background
     f'<rect '
     f'width="100%" '
     f'height="100%" '
     f'fill="{BACKGROUND}"/>',
 
-    # Contribution count
     f'<text '
     f'x="0" '
     f'y="20" '
@@ -204,9 +200,14 @@ for i, week in enumerate(
 
         count = day["contributionCount"]
 
+        # Python weekday:
+        # Monday = 0
+        # Sunday = 6
         row = date.weekday()
 
-        x = i * (cell_size + gap)
+        x = i * (
+            cell_size + gap
+        )
 
         y = 30 + row * (
             cell_size + gap
@@ -243,7 +244,7 @@ svg.append("</svg>")
 
 
 # ==================================================
-# WRITE FILE
+# WRITE SVG
 # ==================================================
 
 with open(
