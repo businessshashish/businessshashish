@@ -1,9 +1,9 @@
 <div align="center">
 
-<img src="./portrait.svg" width="900">
+<img src="./profile.svg" width="100%">
 
-<br><br>
+<br>
 
-<img src="./stats.svg" width="900">
+<img src="./stats.svg" width="100%">
 
 </div>
