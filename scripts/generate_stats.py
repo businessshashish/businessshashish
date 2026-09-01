@@ -3,8 +3,14 @@ import os
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
+
 TOKEN = os.environ["GITHUB_TOKEN"]
 LOGIN = os.environ["GH_LOGIN"]
+
+
+# ==================================================
+# DATE RANGE
+# ==================================================
 
 today = datetime.now(timezone.utc).date()
 
@@ -20,12 +26,17 @@ end = datetime.combine(
     timezone.utc,
 )
 
+
+# ==================================================
+# GITHUB GRAPHQL QUERY
+# ==================================================
+
 query = """
 query($login: String!, $from: DateTime!, $to: DateTime!) {
   user(login: $login) {
     contributionsCollection(from: $from, to: $to) {
+      totalContributions
       contributionCalendar {
-        totalContributions
         weeks {
           contributionDays {
             date
@@ -38,6 +49,7 @@ query($login: String!, $from: DateTime!, $to: DateTime!) {
 }
 """
 
+
 payload = json.dumps({
     "query": query,
     "variables": {
@@ -46,6 +58,11 @@ payload = json.dumps({
         "to": end.isoformat(),
     },
 }).encode()
+
+
+# ==================================================
+# GITHUB REQUEST
+# ==================================================
 
 request = urllib.request.Request(
     "https://api.github.com/graphql",
@@ -57,62 +74,127 @@ request = urllib.request.Request(
     },
 )
 
+
 with urllib.request.urlopen(request) as response:
     data = json.load(response)
+
 
 if "errors" in data:
     raise RuntimeError(data["errors"])
 
-calendar = data["data"]["user"]["contributionsCollection"]["contributionCalendar"]
+
+# ==================================================
+# EXTRACT CONTRIBUTION CALENDAR
+# ==================================================
+
+calendar = (
+    data["data"]
+    ["user"]
+    ["contributionsCollection"]
+    ["contributionCalendar"]
+)
+
 
 total = calendar["totalContributions"]
+
 
 days = []
 
 for week in calendar["weeks"]:
-    days.extend(week["contributionDays"])
+    days.extend(
+        week["contributionDays"]
+    )
 
 
-# --------------------------------------------------
-# Generate simple contribution SVG
-# --------------------------------------------------
+# ==================================================
+# SVG SETTINGS
+# ==================================================
 
 cell_size = 12
 gap = 3
+
 columns = len(calendar["weeks"])
 rows = 7
 
 width = columns * (cell_size + gap)
 height = rows * (cell_size + gap) + 45
 
-levels = [0, 1, 3, 6, 10]
+
+# ==================================================
+# CONTRIBUTION LEVEL
+# ==================================================
 
 def level(count):
+
     if count == 0:
         return 0
+
     if count <= 2:
         return 1
+
     if count <= 5:
         return 2
+
     if count <= 9:
         return 3
+
     return 4
 
 
+# ==================================================
+# GITHUB DARK MODE COLORS
+# ==================================================
+
+BACKGROUND = "#0d1117"
+
+EMPTY = "#161b22"
+
+LEVELS = [
+    "#161b22",
+    "#0e4429",
+    "#006d32",
+    "#26a641",
+    "#39d353",
+]
+
+TEXT = "#f0f0f0"
+
+
+# ==================================================
+# BUILD SVG
+# ==================================================
+
 svg = [
     f'<svg xmlns="http://www.w3.org/2000/svg" '
-    f'width="{width}" height="{height}" '
+    f'width="{width}" '
+    f'height="{height}" '
     f'viewBox="0 0 {width} {height}">',
-    
-    '<rect width="100%" height="100%" fill="white"/>',
 
-    f'<text x="0" y="20" '
-    f'font-family="monospace" font-size="16" '
-    f'fill="black">CONTRIBUTIONS: {total}</text>'
+    # Background
+    f'<rect '
+    f'width="100%" '
+    f'height="100%" '
+    f'fill="{BACKGROUND}"/>',
+
+    # Contribution count
+    f'<text '
+    f'x="0" '
+    f'y="20" '
+    f'font-family="monospace" '
+    f'font-size="16" '
+    f'fill="{TEXT}">'
+    f'CONTRIBUTIONS: {total}'
+    f'</text>',
 ]
 
 
-for i, week in enumerate(calendar["weeks"]):
+# ==================================================
+# DRAW CONTRIBUTION CELLS
+# ==================================================
+
+for i, week in enumerate(
+    calendar["weeks"]
+):
 
     for day in week["contributionDays"]:
 
@@ -122,36 +204,63 @@ for i, week in enumerate(calendar["weeks"]):
 
         count = day["contributionCount"]
 
-        # weekday(): Monday = 0, Sunday = 6
         row = date.weekday()
 
         x = i * (cell_size + gap)
-        y = 30 + row * (cell_size + gap)
 
-        # Different opacity levels represent activity.
-        opacity = [
-            0.08,
-            0.25,
-            0.45,
-            0.70,
-            1.0
-        ][level(count)]
+        y = 30 + row * (
+            cell_size + gap
+        )
+
+        contribution_level = level(
+            count
+        )
+
+        fill = LEVELS[
+            contribution_level
+        ]
 
         svg.append(
-            f'<rect x="{x}" y="{y}" '
-            f'width="{cell_size}" height="{cell_size}" '
-            f'fill="black" opacity="{opacity}">'
-            f'<title>{date}: {count} contributions</title>'
+            f'<rect '
+            f'x="{x}" '
+            f'y="{y}" '
+            f'width="{cell_size}" '
+            f'height="{cell_size}" '
+            f'rx="2" '
+            f'fill="{fill}">'
+            f'<title>'
+            f'{date}: {count} contributions'
+            f'</title>'
             f'</rect>'
         )
 
 
+# ==================================================
+# CLOSE SVG
+# ==================================================
+
 svg.append("</svg>")
 
-with open("stats.svg", "w", encoding="utf-8") as file:
-    file.write("\n".join(svg))
+
+# ==================================================
+# WRITE FILE
+# ==================================================
+
+with open(
+    "stats.svg",
+    "w",
+    encoding="utf-8"
+) as file:
+
+    file.write(
+        "\n".join(svg)
+    )
 
 
-print(f"Generated stats.svg")
-print(f"Total contributions: {total}")
-print(f"Days returned: {len(days)}")
+print("Generated stats.svg")
+print(
+    f"Total contributions: {total}"
+)
+print(
+    f"Days returned: {len(days)}"
+)
