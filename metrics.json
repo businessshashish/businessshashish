@@ -1,0 +1,9 @@
+{
+  "metrics": [
+    { "label": "PROJECTS BUILT",  "value": "27",    "icon": "layers" },
+    { "label": "CLIENTS CLOSED",  "value": "8",     "icon": "users"  },
+    { "label": "PIPELINE AGENTS", "value": "5",     "icon": "nodes"  },
+    { "label": "CODE COMMITS",    "value": "1.2K+", "icon": "code"   },
+    { "label": "PRODUCTS LIVE",   "value": "3",     "icon": "trend"  }
+  ]
+}

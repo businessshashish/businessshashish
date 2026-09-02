@@ -1,123 +1,91 @@
-from PIL import Image, ImageOps, ImageEnhance, ImageFilter
+"""ASCII portrait -> portrait.svg
+
+Small on purpose: the GitHub avatar already carries the photograph, so this
+is a texture for the hero's right column, not the hero itself.
+
+Reads assets/portrait_cutout.png (background already removed, committed to the
+repo) so CI needs nothing heavier than pillow + numpy. If the cutout is missing
+it falls back to rembg on assets/portrait.jpg and writes the cutout for reuse.
+"""
+
+from pathlib import Path
+
 import numpy as np
+from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 
-from rembg import remove
+ROOT = Path(__file__).resolve().parent.parent
 
+CUTOUT = ROOT / "assets" / "portrait_cutout.png"
+SOURCE = ROOT / "assets" / "portrait.jpg"
+OUTPUT = ROOT / "portrait.svg"
 
-INPUT = "assets/portrait.jpg"
-OUTPUT = "portrait.svg"
+COLS = 44
 
-COLS = 110
+CELL_W = 4.0
+CELL_H = 6.9
+FONT_SIZE = 6.6
 
-# Dark → light
+# Dark -> light
 RAMP = "@%#*+cs=:-.` "
 
 BACKGROUND = "#0d1117"
 TEXT_COLOR = "#f0f0f0"
 
-
-# --------------------------------------------------
-# 1. Read image
-# --------------------------------------------------
-
-image = Image.open(INPUT).convert("RGBA")
+# The systems map types itself in first; the face follows it.
+BASE_DELAY = 0.90
+ROW_STEP = 0.035
+ROW_DUR = 0.30
 
 
 # --------------------------------------------------
-# 2. Remove background
+# Source image
 # --------------------------------------------------
 
-image = remove(image)
+if CUTOUT.exists():
+    image = Image.open(CUTOUT).convert("RGBA")
+else:
+    from rembg import remove
 
+    image = remove(Image.open(SOURCE).convert("RGBA"))
 
-# --------------------------------------------------
-# 3. Crop tightly around the person
-# --------------------------------------------------
+    bbox = image.getchannel("A").getbbox()
+    if bbox:
+        image = image.crop(bbox)
+
+    image.thumbnail((600, 600), Image.Resampling.LANCZOS)
+    image.save(CUTOUT, optimize=True)
+
 
 alpha = image.getchannel("A")
 
-bbox = alpha.getbbox()
-
-if bbox:
-    image = image.crop(bbox)
-    alpha = image.getchannel("A")
-
-
-# --------------------------------------------------
-# 4. Prepare the person's brightness
-# --------------------------------------------------
-
-rgb = image.convert("RGB")
-
-gray = ImageOps.grayscale(rgb)
-
+gray = ImageOps.grayscale(image.convert("RGB"))
 gray = ImageEnhance.Contrast(gray).enhance(1.35)
-
-gray = gray.filter(
-    ImageFilter.GaussianBlur(radius=0.35)
-)
+gray = gray.filter(ImageFilter.GaussianBlur(radius=0.35))
 
 
 # --------------------------------------------------
-# 5. Convert to numpy
-# --------------------------------------------------
-
-brightness = np.array(gray).astype(np.float32)
-alpha_array = np.array(alpha).astype(np.float32)
-
-
-# --------------------------------------------------
-# 6. Darken brightness for better ASCII depth
-# --------------------------------------------------
-
-brightness = brightness / 255.0
-
-brightness = np.power(brightness, 1.7)
-
-brightness = brightness * 255.0
-
-brightness = np.clip(brightness, 0, 255)
-
-
-# --------------------------------------------------
-# 7. Calculate ASCII dimensions
+# Grid
 # --------------------------------------------------
 
 width, height = gray.size
 
 cols = COLS
+rows = max(1, int(cols * (height / width) * 0.48))
 
-rows = max(
-    1,
-    int(cols * (height / width) * 0.48)
-)
-
-
-# --------------------------------------------------
-# 8. Resize brightness + alpha mask
-# --------------------------------------------------
-
-small_brightness = gray.resize(
-    (cols, rows),
-    Image.Resampling.LANCZOS
-)
-
-small_brightness = np.array(
-    small_brightness
+brightness = np.array(
+    gray.resize((cols, rows), Image.Resampling.LANCZOS)
 ).astype(np.float32)
 
-small_alpha = alpha.resize(
-    (cols, rows),
-    Image.Resampling.LANCZOS
-)
+# Darkening curve: without it a side-lit face flattens into one tone.
+brightness = np.clip(np.power(brightness / 255.0, 1.7) * 255.0, 0, 255)
 
-small_alpha = np.array(
-    small_alpha
+mask = np.array(
+    alpha.resize((cols, rows), Image.Resampling.LANCZOS)
 ).astype(np.float32)
 
 
 # --------------------------------------------------
-# 9. Convert brightness → ASCII
+# Brightness -> characters
 # --------------------------------------------------
 
 ramp_length = len(RAMP)
@@ -130,27 +98,14 @@ for y in range(rows):
 
     for x in range(cols):
 
-        a = small_alpha[y, x]
-
-        b = small_brightness[y, x]
-
-        # Completely transparent = no character
-        if a < 35:
+        if mask[y, x] < 35:
             line += " "
             continue
 
-        # Fade characters near the edge of the subject
-        effective_brightness = b * (a / 255.0)
+        value = brightness[y, x] * (mask[y, x] / 255.0)
 
-        index = int(
-            effective_brightness / 255
-            * (ramp_length - 1)
-        )
-
-        index = max(
-            0,
-            min(ramp_length - 1, index)
-        )
+        index = int(value / 255 * (ramp_length - 1))
+        index = max(0, min(ramp_length - 1, index))
 
         line += RAMP[index]
 
@@ -158,112 +113,57 @@ for y in range(rows):
 
 
 # --------------------------------------------------
-# 10. Create SVG
+# SVG
 # --------------------------------------------------
 
-CELL_WIDTH = 8
-CELL_HEIGHT = 14
+SVG_WIDTH = round(cols * CELL_W, 2)
+SVG_HEIGHT = round(rows * CELL_H, 2)
 
-SVG_WIDTH = cols * CELL_WIDTH
-SVG_HEIGHT = rows * CELL_HEIGHT
-
-svg = []
-
-svg.append(
+svg = [
     f'<svg xmlns="http://www.w3.org/2000/svg" '
-    f'width="{SVG_WIDTH}" '
-    f'height="{SVG_HEIGHT}" '
-    f'viewBox="0 0 {SVG_WIDTH} {SVG_HEIGHT}">'
-)
+    f'width="{SVG_WIDTH}" height="{SVG_HEIGHT}" '
+    f'viewBox="0 0 {SVG_WIDTH} {SVG_HEIGHT}">',
+    f'<rect class="bg" width="100%" height="100%" fill="{BACKGROUND}"/>',
+]
 
-
-# --------------------------------------------------
-# 11. Dark background
-# --------------------------------------------------
-
-svg.append(
-    f'<rect width="100%" height="100%" fill="{BACKGROUND}"/>'
-)
-
-
-# --------------------------------------------------
-# 12. Add ASCII rows
-# --------------------------------------------------
 
 for y, row in enumerate(ascii_rows):
 
     escaped = (
-        row
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
+        row.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     )
 
-    y_position = (
-        y * CELL_HEIGHT
-        + CELL_HEIGHT
-    )
+    baseline = round(y * CELL_H + CELL_H - 1.4, 2)
 
     svg.append(
-        f'<text '
-        f'x="0" '
-        f'y="{y_position}" '
-        f'font-family="monospace" '
-        f'font-size="13px" '
-        f'font-weight="400" '
-        f'fill="{TEXT_COLOR}" '
-        f'xml:space="preserve">'
-        f'{escaped}'
-        f'</text>'
+        f'<text x="0" y="{baseline}" '
+        f'font-family="monospace" font-size="{FONT_SIZE}px" '
+        f'fill="{TEXT_COLOR}" xml:space="preserve">{escaped}</text>'
     )
 
 
-# --------------------------------------------------
-# 13. Animate the ASCII rows
-# --------------------------------------------------
-
+# Left-to-right reveal, one row at a time. The mask runs past the glyph
+# run so a rounded advance can't leak the last character of a row.
+COVER_W = round(SVG_WIDTH + 6, 2)
+# Left-to-right reveal, one row at a time.
 for y in range(rows):
 
-    delay = y * 0.09
+    begin = round(BASE_DELAY + y * ROW_STEP, 2)
+    top = round(y * CELL_H, 2)
 
     svg.append(
-        f'<rect '
-        f'x="0" '
-        f'y="{y * CELL_HEIGHT}" '
-        f'width="{SVG_WIDTH}" '
-        f'height="{CELL_HEIGHT}" '
-        f'fill="{BACKGROUND}" '
-        f'opacity="1">'
-        f'<animate '
-        f'attributeName="opacity" '
-        f'from="1" '
-        f'to="0" '
-        f'dur="0.35s" '
-        f'begin="{delay:.2f}s" '
-        f'fill="freeze"/>'
+        f'<rect x="-2" y="{round(top - 0.5, 2)}" width="{COVER_W}" '
+        f'height="{round(CELL_H + 1, 2)}" fill="{BACKGROUND}">'
+        f'<animate attributeName="x" from="-2" to="{COVER_W - 2}" '
+        f'dur="{ROW_DUR}s" begin="{begin}s" fill="freeze"/>'
+        f'<animate attributeName="width" from="{COVER_W}" to="0" '
+        f'dur="{ROW_DUR}s" begin="{begin}s" fill="freeze"/>'
         f'</rect>'
     )
 
 
-# --------------------------------------------------
-# 14. Close SVG
-# --------------------------------------------------
-
 svg.append("</svg>")
 
+OUTPUT.write_text("\n".join(svg), encoding="utf-8")
 
-# --------------------------------------------------
-# 15. Write file
-# --------------------------------------------------
-
-with open(
-    OUTPUT,
-    "w",
-    encoding="utf-8"
-) as f:
-
-    f.write("\n".join(svg))
-
-
-print("Generated portrait.svg")
-print(f"Size: {cols} × {rows}")
+print(f"Generated {OUTPUT.name}  {cols} x {rows}")

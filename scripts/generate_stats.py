@@ -1,271 +1,267 @@
+"""System metrics -> stats.svg
+
+GitHub already draws a contribution calendar directly below the README, so
+this row shows what that calendar cannot: what the systems actually produced.
+
+Numbers live in metrics.json. Each tile's block meter is one block per unit,
+capped at the grid, so a zero is empty space rather than an implied value.
+Also refreshes data.json (contribution total) for the hero's profile signals.
+"""
+
 import json
 import os
+import re
 import urllib.request
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
+ROOT = Path(__file__).resolve().parent.parent
 
-TOKEN = os.environ["GITHUB_TOKEN"]
-LOGIN = os.environ["GH_LOGIN"]
+CONFIG = ROOT / "metrics.json"
+DATA = ROOT / "data.json"
+OUTPUT = ROOT / "stats.svg"
+
+WIDTH = 1200
+HEIGHT = 270
+
+BACKGROUND = "#0d1117"
+TEXT = "#f0f0f0"
+MUTED = "#8b949e"
+LINE = "#30363d"
+
+# GitHub contribution greens
+EMPTY = "#161b22"
+FILL_A = "#26a641"
+FILL_B = "#39d353"
+
+MARGIN = 40
+
+GRID_COLS = 8
+GRID_ROWS = 6
+CELL = 11
+GAP = 4
+
+GRID_W = GRID_COLS * (CELL + GAP) - GAP
+PITCH = (WIDTH - MARGIN * 2 - GRID_W) // 4
+
+ICON_Y = 44
+LABEL_Y = 92
+VALUE_Y = 132
+GRID_Y = 154
 
 
 # ==================================================
-# DATE RANGE
+# CONTRIBUTION TOTAL
 # ==================================================
 
-today = datetime.now(timezone.utc).date()
+def fetch_contributions():
+    """Whole UTC days, public data only, so two runs the same day agree."""
 
-start = datetime.combine(
-    today - timedelta(days=364),
-    datetime.min.time(),
-    timezone.utc,
-)
+    token = os.environ.get("GITHUB_TOKEN")
+    login = os.environ.get("GH_LOGIN")
 
-end = datetime.combine(
-    today,
-    datetime.max.time(),
-    timezone.utc,
-)
+    if not token or not login:
+        return None
 
+    today = datetime.now(timezone.utc).date()
 
-# ==================================================
-# GITHUB GRAPHQL QUERY
-# ==================================================
+    start = datetime.combine(
+        today - timedelta(days=364), datetime.min.time(), timezone.utc
+    )
+    end = datetime.combine(today, datetime.max.time(), timezone.utc)
 
-query = """
-query($login: String!, $from: DateTime!, $to: DateTime!) {
-  user(login: $login) {
-    contributionsCollection(
-  from: $from,
-  to: $to,
-  includePrivateContributions: true
-) {
-      contributionCalendar {
-        totalContributions
-        weeks {
-          contributionDays {
-            date
-            contributionCount
-          }
+    query = """
+    query($login: String!, $from: DateTime!, $to: DateTime!) {
+      user(login: $login) {
+        contributionsCollection(from: $from, to: $to) {
+          contributionCalendar { totalContributions }
         }
       }
     }
-  }
-}
-"""
+    """
 
+    payload = json.dumps({
+        "query": query,
+        "variables": {
+            "login": login,
+            "from": start.isoformat(),
+            "to": end.isoformat(),
+        },
+    }).encode()
 
-payload = json.dumps({
-    "query": query,
-    "variables": {
-        "login": LOGIN,
-        "from": start.isoformat(),
-        "to": end.isoformat(),
-    },
-}).encode()
+    request = urllib.request.Request(
+        "https://api.github.com/graphql",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "User-Agent": "businessshashish-profile",
+        },
+    )
 
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            body = json.load(response)
+    except Exception:
+        return None
 
-# ==================================================
-# GITHUB REQUEST
-# ==================================================
+    if "errors" in body:
+        return None
 
-request = urllib.request.Request(
-    "https://api.github.com/graphql",
-    data=payload,
-    headers={
-        "Authorization": f"Bearer {TOKEN}",
-        "Content-Type": "application/json",
-        "User-Agent": "github-profile-generator",
-    },
-)
-
-
-with urllib.request.urlopen(request) as response:
-    data = json.load(response)
-
-
-if "errors" in data:
-    raise RuntimeError(data["errors"])
-
-
-# ==================================================
-# EXTRACT CONTRIBUTION CALENDAR
-# ==================================================
-
-calendar = (
-    data["data"]
-    ["user"]
-    ["contributionsCollection"]
-    ["contributionCalendar"]
-)
-
-
-total = calendar["totalContributions"]
-
-
-days = []
-
-for week in calendar["weeks"]:
-    days.extend(
-        week["contributionDays"]
+    return (
+        body["data"]["user"]["contributionsCollection"]
+        ["contributionCalendar"]["totalContributions"]
     )
 
 
+data = {}
+
+if DATA.exists():
+    data = json.loads(DATA.read_text(encoding="utf-8"))
+
+total = fetch_contributions()
+
+if total is not None:
+    data["contributions"] = total
+
+DATA.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
 # ==================================================
-# SVG SETTINGS
+# METRICS
 # ==================================================
 
-cell_size = 12
-gap = 3
+metrics = json.loads(CONFIG.read_text(encoding="utf-8"))["metrics"]
 
-columns = len(calendar["weeks"])
-rows = 7
-
-width = columns * (cell_size + gap)
-height = rows * (cell_size + gap) + 45
+CAPACITY = GRID_COLS * GRID_ROWS
 
 
-# ==================================================
-# CONTRIBUTION LEVEL
-# ==================================================
+def blocks(metric):
+    """One block per unit, capped at the grid."""
 
-def level(count):
+    if "blocks" in metric:
+        return max(0, min(CAPACITY, int(metric["blocks"])))
 
-    if count == 0:
+    match = re.match(r"([\d.]+)\s*([KMkm]?)", str(metric["value"]))
+
+    if not match:
         return 0
 
-    if count <= 2:
-        return 1
+    amount = float(match.group(1))
 
-    if count <= 5:
-        return 2
+    if match.group(2).upper() == "K":
+        amount *= 1000
+    elif match.group(2).upper() == "M":
+        amount *= 1_000_000
 
-    if count <= 9:
-        return 3
-
-    return 4
+    return max(0, min(CAPACITY, int(round(amount))))
 
 
 # ==================================================
-# GITHUB DARK MODE COLORS
+# ICONS  (20 x 20, stroked)
 # ==================================================
 
-BACKGROUND = "#0d1117"
+ICONS = {
+    "layers": '<path d="M10 2 18 6 10 10 2 6Z"/>'
+              '<path d="M2 10 10 14 18 10"/>'
+              '<path d="M2 14 10 18 18 14"/>',
 
-LEVELS = [
-    "#161b22",
-    "#0e4429",
-    "#006d32",
-    "#26a641",
-    "#39d353",
-]
+    "users":  '<circle cx="8" cy="6.5" r="3.2"/>'
+              '<path d="M2 17.5c0-3.4 2.7-5.2 6-5.2s6 1.8 6 5.2"/>'
+              '<path d="M14.2 4.2a3.2 3.2 0 0 1 0 6"/>'
+              '<path d="M15 12.6c2.1.5 3.4 2.1 3.4 4.9"/>',
 
-TEXT = "#f0f0f0"
+    "nodes":  '<circle cx="10" cy="4" r="2.2"/>'
+              '<circle cx="4" cy="16" r="2.2"/>'
+              '<circle cx="16" cy="16" r="2.2"/>'
+              '<path d="M8.7 5.9 5.2 13.9M11.3 5.9l3.5 8M6.2 16h7.6"/>',
+
+    "code":   '<path d="M7 5 2 10l5 5"/>'
+              '<path d="M13 5l5 5-5 5"/>',
+
+    "trend":  '<path d="M2 15 7.5 9.5 11 13 18 5"/>'
+              '<path d="M13 5h5v5"/>',
+}
 
 
 # ==================================================
-# BUILD SVG
+# BUILD
 # ==================================================
+
+def esc(value):
+    return (
+        str(value)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
 
 svg = [
-    f'<svg xmlns="http://www.w3.org/2000/svg" '
-    f'width="{width}" '
-    f'height="{height}" '
-    f'viewBox="0 0 {width} {height}">',
+    f'<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" '
+    f'height="{HEIGHT}" viewBox="0 0 {WIDTH} {HEIGHT}">',
 
-    f'<rect '
-    f'width="100%" '
-    f'height="100%" '
-    f'fill="{BACKGROUND}"/>',
+    f'<rect width="100%" height="100%" fill="{BACKGROUND}"/>',
 
-    f'<text '
-    f'x="0" '
-    f'y="20" '
-    f'font-family="monospace" '
-    f'font-size="16" '
-    f'fill="{TEXT}">'
-    f'CONTRIBUTIONS: {total}'
-    f'</text>',
+    f'<rect x="12" y="12" width="{WIDTH - 24}" height="{HEIGHT - 24}" '
+    f'rx="8" fill="none" stroke="{LINE}"/>',
 ]
 
 
-# ==================================================
-# DRAW CONTRIBUTION CELLS
-# ==================================================
+for index, metric in enumerate(metrics):
 
-for i, week in enumerate(
-    calendar["weeks"]
-):
+    x = MARGIN + index * PITCH
 
-    for day in week["contributionDays"]:
+    svg.append(
+        f'<g transform="translate({x},{ICON_Y})" fill="none" '
+        f'stroke="{FILL_B}" stroke-width="1.5" stroke-linecap="round" '
+        f'stroke-linejoin="round">{ICONS.get(metric.get("icon"), "")}</g>'
+    )
 
-        date = datetime.fromisoformat(
-            day["date"]
-        ).date()
+    svg.append(
+        f'<text x="{x}" y="{LABEL_Y}" font-family="monospace" '
+        f'font-size="13px" fill="{MUTED}" letter-spacing="2px">'
+        f'{esc(metric["label"])}</text>'
+    )
 
-        count = day["contributionCount"]
+    svg.append(
+        f'<text x="{x}" y="{VALUE_Y}" font-family="monospace" '
+        f'font-size="34px" font-weight="700" fill="{TEXT}">'
+        f'{esc(metric["value"])}</text>'
+    )
 
-        # Python weekday:
-        # Monday = 0
-        # Sunday = 6
-        row = date.weekday()
+    filled = blocks(metric)
 
-        x = i * (
-            cell_size + gap
-        )
+    for cell in range(CAPACITY):
 
-        y = 30 + row * (
-            cell_size + gap
-        )
+        column = cell % GRID_COLS
+        row = cell // GRID_COLS
 
-        contribution_level = level(
-            count
-        )
+        cx = x + column * (CELL + GAP)
+        cy = GRID_Y + row * (CELL + GAP)
 
-        fill = LEVELS[
-            contribution_level
-        ]
+        if cell >= filled:
+            svg.append(
+                f'<rect x="{cx}" y="{cy}" width="{CELL}" height="{CELL}" '
+                f'rx="2" fill="{EMPTY}"/>'
+            )
+            continue
+
+        fill = FILL_B if (column + row) % 2 == 0 else FILL_A
+        begin = round(index * 0.22 + cell * 0.012, 3)
 
         svg.append(
-            f'<rect '
-            f'x="{x}" '
-            f'y="{y}" '
-            f'width="{cell_size}" '
-            f'height="{cell_size}" '
-            f'rx="2" '
-            f'fill="{fill}">'
-            f'<title>'
-            f'{date}: {count} contributions'
-            f'</title>'
+            f'<rect x="{cx}" y="{cy}" width="{CELL}" height="{CELL}" '
+            f'rx="2" fill="{fill}" opacity="0">'
+            f'<animate attributeName="opacity" from="0" to="1" '
+            f'dur="0.25s" begin="{begin}s" fill="freeze"/>'
             f'</rect>'
         )
 
 
-# ==================================================
-# CLOSE SVG
-# ==================================================
-
 svg.append("</svg>")
 
+OUTPUT.write_text("\n".join(svg), encoding="utf-8")
 
-# ==================================================
-# WRITE SVG
-# ==================================================
-
-with open(
-    "stats.svg",
-    "w",
-    encoding="utf-8"
-) as file:
-
-    file.write(
-        "\n".join(svg)
-    )
-
-
-print("Generated stats.svg")
-print(
-    f"Total contributions: {total}"
-)
-print(
-    f"Days returned: {len(days)}"
-)
+print(f"Generated {OUTPUT.name}")
+print(f"Contributions: {data.get('contributions')}")
