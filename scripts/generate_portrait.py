@@ -1,7 +1,7 @@
 """ASCII portrait -> portrait.svg
 
 Small on purpose: the GitHub avatar already carries the photograph, so this
-is a texture for the hero's right column, not the hero itself.
+is a texture in the identity strip, not the hero itself.
 
 Reads assets/portrait_cutout.png (background already removed, committed to the
 repo) so CI needs nothing heavier than pillow + numpy. If the cutout is missing
@@ -19,20 +19,20 @@ CUTOUT = ROOT / "assets" / "portrait_cutout.png"
 SOURCE = ROOT / "assets" / "portrait.jpg"
 OUTPUT = ROOT / "portrait.svg"
 
-COLS = 44
+COLS = 37
 
-CELL_W = 4.0
+CELL_W = 4.05
 CELL_H = 6.9
-FONT_SIZE = 6.6
+FONT_SIZE = 6.7
 
 # Dark -> light
 RAMP = "@%#*+cs=:-.` "
 
 BACKGROUND = "#0d1117"
-TEXT_COLOR = "#f0f0f0"
+TEXT_COLOR = "#c9d1d9"
 
 # The systems map types itself in first; the face follows it.
-BASE_DELAY = 0.90
+BASE_DELAY = 1.05
 ROW_STEP = 0.035
 ROW_DUR = 0.30
 
