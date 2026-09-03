@@ -39,9 +39,14 @@ jobs:
       - name: Generate profile
         run: python scripts/generate_profile.py
 
+      # Gives changed art a new URL so GitHub's image cache can't serve
+      # yesterday's drawing.
+      - name: Stamp README
+        run: python scripts/stamp_readme.py
+
       - name: Commit changes
         run: |
-          files="portrait.svg profile.svg stats.svg data.json"
+          files="portrait.svg profile.svg stats.svg data.json README.md"
 
           if [ -z "$(git status --porcelain -- $files)" ]; then
             echo "Nothing changed."
