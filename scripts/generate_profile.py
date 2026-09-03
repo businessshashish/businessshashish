@@ -12,6 +12,7 @@ Everything is inlined. The page makes zero third-party requests.
 import base64
 import io
 import json
+import os
 import re
 from pathlib import Path
 from urllib.request import Request, urlopen
@@ -120,27 +121,39 @@ logo_href = "data:image/png;base64," + base64.b64encode(
 ).decode("ascii")
 
 
-repositories = followers = 0
+data = {}
+
+if DATA.exists():
+    data = json.loads(DATA.read_text(encoding="utf-8"))
+
+# A failed call must not publish zeros: keep the last known values and
+# only write back what actually came off the wire.
+headers = {"User-Agent": "businessshashish-profile"}
+
+# Unauthenticated REST is 60 calls an hour per IP, which a few local runs
+# will exhaust. CI already has a token; use it when it is there.
+if os.environ.get("GITHUB_TOKEN"):
+    headers["Authorization"] = "Bearer " + os.environ["GITHUB_TOKEN"]
 
 try:
     request = Request(
         f"https://api.github.com/users/{USERNAME}",
-        headers={"User-Agent": "businessshashish-profile"},
+        headers=headers,
     )
     with urlopen(request, timeout=10) as response:
         github = json.load(response)
 
-    repositories = github.get("public_repos", 0)
-    followers = github.get("followers", 0)
+    data["repositories"] = github["public_repos"]
+    data["followers"] = github["followers"]
+
+    DATA.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
 except Exception:
     pass
 
-contributions = 0
-
-if DATA.exists():
-    contributions = json.loads(
-        DATA.read_text(encoding="utf-8")
-    ).get("contributions", 0)
+contributions = data.get("contributions", 0)
+repositories = data.get("repositories", 0)
+followers = data.get("followers", 0)
 
 
 # ==================================================

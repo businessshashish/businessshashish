@@ -18,14 +18,15 @@ HEIGHT = 38
 TITLE = "LAYERSTOP CORTEX"
 STATUS = "8 PILLARS  .  5 AGENTS  .  NIGHTLY"
 
+# (label, note under the bar, rows filled out of BAR_H - 2)
 PILLARS = [
-    ("CRAFT", "--", 0),
-    ("DELIVERY", "--", 0),
-    ("DEMAND", "--", 0),
-    ("EVIDENCE", "--", 0),
-    ("LEVERAGE", "--", 0),
-    ("POV", "--", 0),
-    ("REPUTATION", "--", 0),
+    ("CRAFT", "27 BUILT", 5),
+    ("DELIVERY", "14 DAYS", 4),
+    ("DEMAND", "20 / DAY", 2),
+    ("EVIDENCE", "3 PROOFS", 2),
+    ("LEVERAGE", "5 AGENTS", 4),
+    ("POV", "DRAFTING", 1),
+    ("REPUTATION", "BUILDING", 3),
     ("CONVERSION", "3 FIRED", 2),
 ]
 
@@ -128,7 +129,7 @@ for i, (name, note, filled) in enumerate(PILLARS):
         put(row, x + 1, "#" * (BAR_W - 2), "a" if live else "f")
 
     centre(BAR_TOP + BAR_H, x, BAR_W, name, "t")
-    centre(BAR_TOP + BAR_H + 1, x, BAR_W, note, "a" if filled else "m")
+    centre(BAR_TOP + BAR_H + 1, x, BAR_W, note, "m")
 
 
 # ==================================================
