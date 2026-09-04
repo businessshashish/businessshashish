@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="./profile.svg?v=26667d1516" width="100%">
+<img src="./profile.svg?v=830690994b" width="100%">
 
 <br>
 
